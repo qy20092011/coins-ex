@@ -8,11 +8,12 @@ from exchanges.binance import Binance
 from exchanges.okx import OKX
 from exchanges.bybit import Bybit
 from exchanges.bitget import Bitget
+from exchanges.hyperliquid import Hyper
 
 app = FastAPI()
 
 total_balance = 0.0
-binance = okx = bybit = bitget = None
+binance = okx = bybit = bitget = hyper = None
 
 def fetch_total_balance():
     global total_balance
@@ -20,8 +21,9 @@ def fetch_total_balance():
     okx.fetch_balances()
     bybit.fetch_asset_overview()
     bitget.fetch_account_assets()
+    hyper.fetch_wallet_balance()
 
-    total_balance = binance.balance_total + okx.balance_total + bybit.balance_total + bitget.balance_total
+    total_balance = binance.balance_total + okx.balance_total + bybit.balance_total + bitget.balance_total + hyper.balance_total
     print(f"Total Balance across all exchanges (USD): {int(total_balance)}")
     return total_balance
 
@@ -34,6 +36,7 @@ def get_total_balance():
         {"ex": "OKX", "balance": int(okx.balance_total)},
         {"ex": "Bybit", "balance": int(bybit.balance_total)},
         {"ex": "Bitget", "balance": int(bitget.balance_total)},
+        {"ex": "Hyperliquid", "balance": int(hyper.balance_total)}
     ]}
 
 def run_scheduler():
@@ -43,7 +46,7 @@ def run_scheduler():
         time.sleep(1)
 
 def main():
-    global binance, okx, bybit, bitget
+    global binance, okx, bybit, bitget, hyper
 
     from dotenv import load_dotenv
     load_dotenv()
@@ -52,6 +55,7 @@ def main():
     okx = OKX(api_key=os.getenv('OKX_API_KEY'), api_secret=os.getenv('OKX_API_SECRET'), passphrase=os.getenv('OKX_PASSPHRASE'))
     bybit = Bybit(api_key=os.getenv('BYBIT_API_KEY'), api_secret=os.getenv('BYBIT_API_SECRET'))
     bitget = Bitget(api_key=os.getenv('BITGET_API_KEY'), api_secret=os.getenv('BITGET_API_SECRET'), passphrase=os.getenv('BITGET_PASSPHRASE'))
+    hyper = Hyper(api_key=os.getenv('HYPER_API_KEY'), api_secret=os.getenv('HYPER_API_SECRET'))
 
     # Run scheduler in background thread
     # thread = threading.Thread(target=run_scheduler, daemon=True)
