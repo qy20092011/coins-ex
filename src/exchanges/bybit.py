@@ -140,6 +140,48 @@ class Bybit(Exchange):
         return response
 
 
+    def get_kline(
+        self,
+        symbol: str,
+        interval: str,
+        start: int = None,
+        end: int = None,
+        limit: int = 200,
+    ) -> list:
+        """
+        获取 K 线数据 GET /v5/market/kline (公开接口，无需签名)
+
+        :param symbol: 交易对，例如 ETHUSDT
+        :param interval: K 线周期，例如 D (日线), 60 (小时线)
+        :param start: 开始时间戳（毫秒，可选）
+        :param end: 结束时间戳（毫秒，可选）
+        :param limit: 返回数量，最大 200，默认 200
+        :return: K 线列表，每条 [startTime, open, high, low, close, volume, turnover]
+        """
+        endpoint = "/v5/market/kline"
+        params = {
+            "category": "linear",
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit,
+        }
+        if start is not None:
+            params["start"] = start
+        if end is not None:
+            params["end"] = end
+
+        url = f"{self.base_url}{endpoint}"
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"get_kline Request Error: {e}")
+            raise
+
+        result = data.get("result", {})
+        return result.get("list", [])
+
     def _make_request(self, method, endpoint, headers, params=None, body=None):
         url = f"{self.base_url}{endpoint}"
         try:

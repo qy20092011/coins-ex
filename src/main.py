@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from scripts.logger import setup_logger, get_logger
 from scripts.monitor_option import monitor_option_positions
+from scripts.eth_option_analysis import run_eth_option_analysis
 
 app = FastAPI()
 
@@ -50,6 +51,15 @@ def get_total_balance():
         {"ex": "Bitget", "balance": int(bitget.balance_total)},
         {"ex": "Hyperliquid", "balance": int(hyper.balance_total)}
     ]}
+
+@app.get("/analysis/eth-option")
+def get_eth_option_analysis(days: int = 200, threshold_pct: float = 5.0):
+    """
+    分析 ETH 日线 K 线，以 16:00 (UTC+8) 为 session 基准，
+    计算每日最大涨跌幅及超过阈值的历史概率，给出期权策略建议。
+    """
+    result = run_eth_option_analysis(bybit, days=days, threshold_pct=threshold_pct)
+    return result
 
 def run_scheduler():
     schedule.every(60).seconds.do(fetch_total_balance)
