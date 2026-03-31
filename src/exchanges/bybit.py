@@ -3,6 +3,9 @@ import hashlib
 import time
 import urllib.parse
 import requests
+import json
+import uuid
+
 from .base import Exchange
 
 
@@ -14,19 +17,10 @@ class Bybit(Exchange):
 
     def fetch_wallet_balance(self, account_type: str = "UNIFIED") -> dict:
         endpoint = "/v5/account/wallet-balance"
-        timestamp = self._get_timestamp()
-        recv_window = "5000"
         params = {
             "accountType": account_type,
         }
-        signature = self._generate_signature(timestamp, recv_window, params)
-        headers = {
-            "X-BAPI-API-KEY": self.api_key,
-            "X-BAPI-TIMESTAMP": str(timestamp),
-            "X-BAPI-SIGN": signature,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json",
-        }
+        headers, params = self._build_signed_headers(params)
         response = self._make_request("GET", endpoint, headers=headers, params=params)
         print(f"fetch_wallet_balance Bybit API Response: {response}")
 
@@ -34,17 +28,8 @@ class Bybit(Exchange):
 
     def fetch_asset_overview(self) -> dict:
         endpoint = "/v5/asset/asset-overview"
-        timestamp = self._get_timestamp()
-        recv_window = "5000"
         params = {}
-        signature = self._generate_signature(timestamp, recv_window, params)
-        headers = {
-            "X-BAPI-API-KEY": self.api_key,
-            "X-BAPI-TIMESTAMP": str(timestamp),
-            "X-BAPI-SIGN": signature,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json",
-        }
+        headers, params = self._build_signed_headers(params)
         response = self._make_request("GET", endpoint, headers=headers, params=params)
         # print(f"fetch_asset_overview Bybit API Response: {response}")
 
@@ -76,10 +61,8 @@ class Bybit(Exchange):
         :return: 仓位信息字典
         """
         endpoint = "/v5/position/list"
-        timestamp = self._get_timestamp()
-        recv_window = "5000"
-
         params = {"category": category}
+
         if symbol is not None:
             params["symbol"] = symbol
         if base_coin is not None:
@@ -91,17 +74,68 @@ class Bybit(Exchange):
         if cursor is not None:
             params["cursor"] = cursor
 
-        signature = self._generate_signature(timestamp, recv_window, params)
-        headers = {
-            "X-BAPI-API-KEY": self.api_key,
-            "X-BAPI-TIMESTAMP": str(timestamp),
-            "X-BAPI-SIGN": signature,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json",
+        headers, params = self._build_signed_headers(params)
+        response = self._make_request("GET", endpoint, headers=headers, params=params)
+        # print(f"get_position_list Bybit API Response: {response}")
+
+        return response
+
+    def create_order(
+        self,
+        category: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        qty: str,
+        price: str = None,
+        time_in_force: str = None,
+        order_link_id: str = None,
+        reduce_only: bool = None,
+        close_on_trigger: bool = None,
+        iv: str = None,
+    ) -> dict:
+        """
+        下单 POST /v5/order/create
+
+        :param category: 产品类型 linear/inverse/option/spot (必填)
+        :param symbol: 交易对名称, 例如 BTC-29NOV24-80000-C (必填)
+        :param side: 方向 Buy/Sell (必填)
+        :param order_type: 订单类型 Market/Limit (必填)
+        :param qty: 下单数量 (必填)
+        :param price: 限价单价格, Market 单可不填 (可选)
+        :param time_in_force: 执行策略 GTC/IOC/FOK, 默认 GTC (可选)
+        :param order_link_id: 自定义订单 ID (可选)
+        :param reduce_only: 是否只减仓, 适用于 linear/inverse (可选)
+        :param close_on_trigger: 触发后是否平仓 (可选)
+        :param iv: 隐含波动率, 仅 option 限价单有效 (可选)
+        :return: 下单结果字典
+        """
+        endpoint = "/v5/order/create"
+        params = {
+            "category": category,
+            "symbol": symbol,
+            "side": side,
+            "orderType": order_type,
+            "qty": qty,
+            "orderLinkId": order_link_id if order_link_id is not None else str(uuid.uuid4())
         }
 
-        response = self._make_request("GET", endpoint, headers=headers, params=params)
-        print(f"get_position_list Bybit API Response: {response}")
+        if price is not None:
+            params["price"] = price
+        if time_in_force is not None:
+            params["timeInForce"] = time_in_force
+        if order_link_id is not None:
+            params["orderLinkId"] = order_link_id
+        if reduce_only is not None:
+            params["reduceOnly"] = reduce_only
+        if close_on_trigger is not None:
+            params["closeOnTrigger"] = close_on_trigger
+        if iv is not None:
+            params["iv"] = iv
+
+        headers, body = self._build_signed_headers(params, is_post=True)
+        response = self._make_request("POST", endpoint, headers=headers, body=body)
+        # print(f"create_order Bybit API Response: {response}")
 
         return response
 
@@ -109,7 +143,12 @@ class Bybit(Exchange):
     def _make_request(self, method, endpoint, headers, params=None, body=None):
         url = f"{self.base_url}{endpoint}"
         try:
-            response = requests.request(method, url, headers=headers, params=params, json=body)
+            if method == "POST" and body is not None:
+                # 手动序列化，确保无空格，与签名一致
+                raw_body = json.dumps(body, separators=(',', ':'))
+                response = requests.request(method, url, headers=headers, data=raw_body)
+            else:
+                response = requests.request(method, url, headers=headers, params=params)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
@@ -119,9 +158,14 @@ class Bybit(Exchange):
             print(f"Request Error: {e}")
             raise
 
-    def _generate_signature(self, timestamp: int, recv_window: str, params: dict) -> str:
-        query_string = urllib.parse.urlencode(params)
-        param_str = f"{timestamp}{self.api_key}{recv_window}{query_string}"
+    def _generate_signature(self, timestamp: int, recv_window: str, params: dict, is_post: bool = False) -> str:
+        if is_post:
+            # POST 请求使用 JSON 字符串，且不能有空格
+            param_str = f"{timestamp}{self.api_key}{recv_window}{json.dumps(params, separators=(',', ':'))}"
+        else:
+            # GET 请求使用 query string
+            query_string = urllib.parse.urlencode(params)
+            param_str = f"{timestamp}{self.api_key}{recv_window}{query_string}"
         return hmac.new(
             self.api_secret.encode("utf-8"),
             param_str.encode("utf-8"),
@@ -130,3 +174,21 @@ class Bybit(Exchange):
 
     def _get_timestamp(self):
         return int(time.time() * 1000)
+    
+    def _build_signed_headers(self, params: dict = None, recv_window: str = "5000", is_post: bool = False) -> tuple[dict, dict]:
+        """
+        构建带签名的请求头和参数。
+        返回 (headers, params)
+        """
+        if params is None:
+            params = {}
+        timestamp = self._get_timestamp()
+        signature = self._generate_signature(timestamp, recv_window, params, is_post=is_post)
+        headers = {
+            "X-BAPI-API-KEY": self.api_key,
+            "X-BAPI-TIMESTAMP": str(timestamp),
+            "X-BAPI-SIGN": signature,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json",
+        }
+        return headers, params
