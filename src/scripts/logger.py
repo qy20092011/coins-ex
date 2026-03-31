@@ -12,6 +12,8 @@ def setup_logger(log_dir: str = None) -> logging.Logger:
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     formatter = logging.Formatter(
         fmt="%(asctime)s [%(levelname)-8s] %(name)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
