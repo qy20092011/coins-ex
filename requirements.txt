@@ -4,3 +4,4 @@ ccxt
 schedule
 fastapi
 uvicorn
+redis

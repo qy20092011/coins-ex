@@ -1,6 +1,8 @@
 import time
 import logging
 import os
+import json
+import redis
 from logging.handlers import TimedRotatingFileHandler
 
 def _setup_monitor_logger() -> logging.Logger:
@@ -52,10 +54,13 @@ def monitor_option_positions(bybit_client, interval: int = 10):
     """
     logger.info("期权仓位监控已启动")
 
+    r = redis.Redis(host='39.108.108.214', port=6379, db=0, password='foobaredredis')
+
     while True:
         try:
             positions = bybit_client.get_position_list(category="option")
             position_list = positions.get("result", {}).get("list", [])
+            option_config = json.loads(r.get('use:15:option').decode('utf-8'))
 
             for pos in position_list:
                 symbol = pos.get("symbol")
@@ -68,7 +73,7 @@ def monitor_option_positions(bybit_client, interval: int = 10):
 
                 # logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
 
-                if unrealised_pnl < -100:
+                if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
                     logger.warning(
                         f"[止损触发] {symbol} unrealisedPnl={unrealised_pnl:.2f}, "
                         f"side={side}, size={size}，执行市价平仓"
