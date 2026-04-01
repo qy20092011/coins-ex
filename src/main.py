@@ -22,11 +22,12 @@ app = FastAPI()
 # 模块级 logger（此时日志系统未初始化，仅占位）
 logger = get_logger("main")
 
-total_balance = 0.0
 binance = okx = bybit = bitget = hyper = None
 
-def fetch_total_balance():
-    global total_balance
+@app.get("/asset/all")
+def get_total_balance():
+    total_balance = 0.0
+    
     binance.fetch_wallet_balance()
     okx.fetch_balances()
     bybit.fetch_asset_overview()
@@ -38,12 +39,9 @@ def fetch_total_balance():
         bybit.balance_total + bitget.balance_total +
         hyper.balance_total
     )
-    logger.info(f"Total Balance across all exchanges (USD): {int(total_balance)}")
-    return total_balance
 
-@app.get("/asset/all")
-def get_total_balance():
-    fetch_total_balance()
+    logger.info(f"Total Balance across all exchanges (USD): {int(total_balance)}")
+
     return {"total_balance": int(total_balance), "currency": "USD", "exchanges": [
         {"ex": "Binance", "balance": int(binance.balance_total)},
         {"ex": "OKX", "balance": int(okx.balance_total)},
@@ -62,7 +60,8 @@ def get_eth_option_analysis(days: int = 200, threshold_pct: float = 5.0):
     return result
 
 def run_scheduler():
-    schedule.every(60).seconds.do(fetch_total_balance)
+    schedule.every(60).seconds.do()
+    
     while True:
         schedule.run_pending()
         time.sleep(1)
@@ -118,13 +117,13 @@ def main():
     logger.info("期权监控线程已启动")
 
     # ⑤ 启动 uvicorn，log_config=None 让其继承 root logger
-    logger.info("启动 HTTP 服务 0.0.0.0:8000")
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=8000,
         log_config=None
     )
+    logger.info("HTTP 服务 0.0.0.0:8000已启动")
 
 if __name__ == "__main__":
     main()

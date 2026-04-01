@@ -46,11 +46,11 @@ def _setup_monitor_logger() -> logging.Logger:
 
 logger = _setup_monitor_logger()
 
-def monitor_option_positions(bybit_client, interval: int = 10):
+def monitor_option_positions(bybit_client, interval: int = 30):
     """
-    定时轮询 Bybit 期权仓位，当 unrealisedPnl < -100 时市价只减仓平仓
+    定时轮询 Bybit 期权仓位，当 unrealisedPnl < -150 时市价只减仓平仓
     :param bybit_client: Bybit 实例
-    :param interval: 轮询间隔（秒），默认 10 秒
+    :param interval: 轮询间隔（秒），默认 30 秒
     """
     logger.info("期权仓位监控已启动")
 
@@ -71,7 +71,7 @@ def monitor_option_positions(bybit_client, interval: int = 10):
                 if not size or float(size) == 0:
                     continue
 
-                # logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
+                logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
 
                 if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
                     logger.warning(
