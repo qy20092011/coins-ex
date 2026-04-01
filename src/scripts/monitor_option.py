@@ -60,7 +60,7 @@ def monitor_option_positions(bybit_client, interval: int = 10):
         try:
             positions = bybit_client.get_position_list(category="option")
             position_list = positions.get("result", {}).get("list", [])
-            option_config = json.loads(r.get('use:15:option').decode('utf-8'))
+            option_config = json.loads(r.get('user:15:option').decode('utf-8'))
 
             for pos in position_list:
                 symbol = pos.get("symbol")
