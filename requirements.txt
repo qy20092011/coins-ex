@@ -5,3 +5,4 @@ schedule
 fastapi
 uvicorn
 redis
+pybit
