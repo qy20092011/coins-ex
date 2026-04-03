@@ -1,10 +1,14 @@
+import os
+from dotenv import load_dotenv
 from pybit.unified_trading import HTTP
 
-# 初始化客户端
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
 session = HTTP(
     testnet=False,  # 使用真实环境，测试网设为True
-    api_key="TYdviGLMnX2Ism30QM",
-    api_secret="992hQiSdxT0Pwkxrio7fn22ThfsNdx3KbvUA",
+    api_key=os.getenv('BYBIT_API_KEY'),
+    api_secret=os.getenv('BYBIT_API_SECRET'),
 )
 
 def get_account_balance():
