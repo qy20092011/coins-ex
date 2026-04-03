@@ -67,17 +67,48 @@ def monitor_option_positions(bybit_client, interval: int = 30):
                 side = pos.get("side")
                 size = pos.get("size")
                 unrealised_pnl = float(pos.get("unrealisedPnl", 0))
+                avg_price = float(pos.get("avgPrice", 0))
+                mark_price = float(pos.get("markPrice", 0))
 
                 if not size or float(size) == 0:
                     continue
 
-                logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
+                if avg_price <= 0 or mark_price <= 0:
+                    logger.warning(f"[跳过] {symbol} avgPrice={avg_price} 或 markPrice={mark_price} 无效")
+                    continue
 
-                if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
+                # logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
+
+                # 根据方向计算亏损百分比
+                if side == "Buy":
+                    pnl_pct = (mark_price - avg_price) / avg_price
+                elif side == "Sell":
+                    pnl_pct = (avg_price - mark_price) / avg_price
+                else:
+                    logger.warning(f"[跳过] {symbol} 未知方向 side={side}")
+                    continue
+
+                # logger.debug(
+                #     f"仓位检查: {symbol} side={side} size={size} "
+                #     f"avgPrice={avg_price} markPrice={mark_price} "
+                #     f"pnl_pct={pnl_pct*100:.2f}%"
+                # )
+
+                loss_limit = float(option_config.get("lossLimitPct", -0.5))
+
+                if pnl_pct <= loss_limit:
                     logger.warning(
-                        f"[止损触发] {symbol} unrealisedPnl={unrealised_pnl:.2f}, "
-                        f"side={side}, size={size}，执行市价平仓"
+                        f"[止损触发] {symbol} side={side} size={size} "
+                        f"avgPrice={avg_price} markPrice={mark_price} "
+                        f"亏损={pnl_pct*100:.2f}%，执行市价平仓"
                     )
+
+                # if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
+                #     logger.warning(
+                #         f"[止损触发] {symbol} unrealisedPnl={unrealised_pnl:.2f}, "
+                #         f"side={side}, size={size}，执行市价平仓"
+                #     )
+
                     close_side = "Sell" if side == "Buy" else "Buy"
 
                     try:
