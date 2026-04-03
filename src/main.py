@@ -98,15 +98,16 @@ def main():
         sys.exit(1)
 
     # ③ 启动定时任务线程
+    # logger.info("启动定时任务线程")
     # scheduler_thread = threading.Thread(
     #     target=run_scheduler,
     #     daemon=True,
     #     name="Scheduler"
     # )
     # scheduler_thread.start()
-    # logger.info("定时任务线程已启动")
 
     # ④ 启动期权仓位监控线程
+    logger.info("启动 期权监控线程")
     option_monitor_thread = threading.Thread(
         target=monitor_option_positions,
         args=(bybit, 10),
@@ -114,16 +115,15 @@ def main():
         name="OptionMonitor"
     )
     option_monitor_thread.start()
-    logger.info("期权监控线程已启动")
 
     # ⑤ 启动 uvicorn，log_config=None 让其继承 root logger
+    logger.info("启动 HTTP 服务 0.0.0.0:8000")
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=8000,
         log_config=None
     )
-    logger.info("HTTP 服务 0.0.0.0:8000已启动")
 
 if __name__ == "__main__":
     main()
