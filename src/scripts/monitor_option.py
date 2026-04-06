@@ -46,7 +46,7 @@ def _setup_monitor_logger() -> logging.Logger:
 
 logger = _setup_monitor_logger()
 
-def monitor_option_positions(bybit_client, interval: int = 30):
+def monitor_option_positions(bybit_client, interval: int = 20):
     """
     定时轮询 Bybit 期权仓位，当 unrealisedPnl < -150 时市价只减仓平仓
     :param bybit_client: Bybit 实例
@@ -97,10 +97,20 @@ def monitor_option_positions(bybit_client, interval: int = 30):
                 loss_limit = float(option_config.get("lossLimitPct", -0.5))
 
                 if pnl_pct <= loss_limit:
+                    # Buy仓平仓方向为Sell，价格略低于markPrice（给对手方成交空间）
+                    # Sell仓平仓方向为Buy，价格略高于markPrice
+                    SLIPPAGE = float(option_config.get("closeSlippage", 0.05))  # 2% 滑点容忍
+
+                    if side == "Buy":
+                        close_side = "Sell"
+                        limit_price = round(mark_price * (1 - SLIPPAGE), 1)
+                    else:
+                        close_side = "Buy"
+                        limit_price = round(mark_price * (1 + SLIPPAGE), 1)
+
                     logger.warning(
-                        f"[止损触发] {symbol} side={side} size={size} "
-                        f"avgPrice={avg_price} markPrice={mark_price} "
-                        f"亏损={pnl_pct*100:.2f}%，执行市价平仓"
+                        f"[止损触发] {symbol} side={side} pnl_pct={pnl_pct:.2%} "
+                        f"markPrice={mark_price} limitPrice={limit_price}"
                     )
 
                 # if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
@@ -116,13 +126,15 @@ def monitor_option_positions(bybit_client, interval: int = 30):
                             category="option",
                             symbol=symbol,
                             side=close_side,
-                            order_type="Market",
+                            order_type="Limit",
                             qty=size,
+                            price=str(limit_price),
+                            timeInForce="IOC",       # 立即成交否则取消
                             reduce_only=True
                         )
                         ret_code = response.get("retCode")
                         if ret_code == 0:
-                            logger.info(f"[平仓成功] {symbol} 市价平仓订单已提交, orderId={response.get('result', {}).get('orderId')}")
+                            logger.info(f"[平仓成功] {symbol} 限价平仓订单已提交, orderId={response.get('result', {}).get('orderId')}")
                         else:
                             logger.error(f"[平仓失败] {symbol} retCode={ret_code}, msg={response.get('retMsg')}")
                     except Exception as e:
