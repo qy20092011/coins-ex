@@ -65,6 +65,8 @@ def get_option_positions():
                 print(f"  Gamma: {pos.get('gamma', 'N/A')}")
                 print(f"  Theta: {pos.get('theta', 'N/A')}")
                 print(f"  Vega: {pos.get('vega', 'N/A')}")
+
+                print(f"pos 数据: {pos}")
         else:
             print(f"获取期权仓位失败: {response['retMsg']}")
     except Exception as e:

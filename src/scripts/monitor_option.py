@@ -5,6 +5,9 @@ import json
 import redis
 from logging.handlers import TimedRotatingFileHandler
 
+# 在函数外部或类级别维护峰值记录字典
+peak_pnl_pct: dict[str, float] = {}   # key: f"{symbol}_{side}"
+
 def _setup_monitor_logger() -> logging.Logger:
     log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -50,7 +53,7 @@ def monitor_option_positions(bybit_client, interval: int = 20):
     """
     定时轮询 Bybit 期权仓位，当 unrealisedPnl < -150 时市价只减仓平仓
     :param bybit_client: Bybit 实例
-    :param interval: 轮询间隔（秒），默认 30 秒
+    :param interval: 轮询间隔（秒），默认 20 秒
     """
     logger.info("期权仓位监控已启动")
 
@@ -62,11 +65,14 @@ def monitor_option_positions(bybit_client, interval: int = 20):
             position_list = positions.get("result", {}).get("list", [])
             option_config = json.loads(r.get('user:15:option').decode('utf-8'))
 
+            PEAK_PROFIT_THRESHOLD = float(option_config.get("peakProfit", 0.5))  # 盈亏百分比达到此值时记录峰值
+            TRAIL_STOP_THRESHOLD = float(option_config.get("trailStop", 0.1))  # 从峰值回撤达到此值时触发止损
+
             for pos in position_list:
                 symbol = pos.get("symbol")
                 side = pos.get("side")
                 size = pos.get("size")
-                unrealised_pnl = float(pos.get("unrealisedPnl", 0))
+                # unrealised_pnl = float(pos.get("unrealisedPnl", 0))
                 avg_price = float(pos.get("avgPrice", 0))
                 mark_price = float(pos.get("markPrice", 0))
 
@@ -79,7 +85,7 @@ def monitor_option_positions(bybit_client, interval: int = 20):
 
                 # logger.debug(f"仓位检查: {symbol} side={side} size={size} unrealisedPnl={unrealised_pnl:.2f}")
 
-                # 根据方向计算亏损百分比
+                # 根据方向计算盈亏百分比
                 if side == "Buy":
                     pnl_pct = (mark_price - avg_price) / avg_price
                 elif side == "Sell":
@@ -88,18 +94,36 @@ def monitor_option_positions(bybit_client, interval: int = 20):
                     logger.warning(f"[跳过] {symbol} 未知方向 side={side}")
                     continue
 
+                # 追踪止损 ==========
+                pos_key = f"{symbol}_{side}"
+                current_peak = peak_pnl_pct.get(pos_key, 0.0)
+                # 更新峰值盈利记录
+                if pnl_pct > current_peak:
+                    peak_pnl_pct[pos_key] = pnl_pct
+                    # logger.info(
+                    #     f"[峰值更新] {pos_key} 新峰值盈利={pnl_pct:.2%}"
+                    # )
+                    current_peak = pnl_pct
+
+                # 追踪止损判断：峰值曾超过50%，且当前盈利回撤至<=10%
+                should_stop = (
+                    current_peak >= PEAK_PROFIT_THRESHOLD
+                    and pnl_pct <= TRAIL_STOP_THRESHOLD
+                )
+
                 # logger.debug(
                 #     f"仓位检查: {symbol} side={side} size={size} "
                 #     f"avgPrice={avg_price} markPrice={mark_price} "
                 #     f"pnl_pct={pnl_pct*100:.2f}%"
+                #     f"peak={current_peak:.2%} should_stop={should_stop}"
                 # )
 
+                # 正常止损 ==========
                 loss_limit = float(option_config.get("lossLimitPct", -0.5))
+                should_stop_loss = pnl_pct <= loss_limit
 
-                if pnl_pct <= loss_limit:
-                    # Buy仓平仓方向为Sell，价格略低于markPrice（给对手方成交空间）
-                    # Sell仓平仓方向为Buy，价格略高于markPrice
-                    SLIPPAGE = float(option_config.get("closeSlippage", 0.05))  # 2% 滑点容忍
+                if should_stop or should_stop_loss:
+                    SLIPPAGE = float(option_config.get("closeSlippage", 0.05))  # 5% 滑点容忍
 
                     if side == "Buy":
                         close_side = "Sell"
@@ -113,12 +137,6 @@ def monitor_option_positions(bybit_client, interval: int = 20):
                         f"markPrice={mark_price} limitPrice={limit_price}"
                     )
 
-                # if unrealised_pnl < float(option_config.get("unrealisedPnlLimit", -150)):
-                #     logger.warning(
-                #         f"[止损触发] {symbol} unrealisedPnl={unrealised_pnl:.2f}, "
-                #         f"side={side}, size={size}，执行市价平仓"
-                #     )
-
                     close_side = "Sell" if side == "Buy" else "Buy"
 
                     try:
@@ -126,11 +144,11 @@ def monitor_option_positions(bybit_client, interval: int = 20):
                             category="option",
                             symbol=symbol,
                             side=close_side,
-                            order_type="Limit",
+                            orderType="Limit",
                             qty=size,
                             price=str(limit_price),
                             timeInForce="IOC",       # 立即成交否则取消
-                            reduce_only=True
+                            reduceOnly=True
                         )
                         ret_code = response.get("retCode")
                         if ret_code == 0:

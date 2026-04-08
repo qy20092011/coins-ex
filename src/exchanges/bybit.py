@@ -85,13 +85,13 @@ class Bybit(Exchange):
         category: str,
         symbol: str,
         side: str,
-        order_type: str,
+        orderType: str,
         qty: str,
         price: str = None,
-        time_in_force: str = None,
-        order_link_id: str = None,
-        reduce_only: bool = None,
-        close_on_trigger: bool = None,
+        timeInForce: str = None,
+        orderLinkId: str = None,
+        reduceOnly: bool = None,
+        closeOnTrigger: bool = None,
         iv: str = None,
     ) -> dict:
         """
@@ -100,13 +100,13 @@ class Bybit(Exchange):
         :param category: 产品类型 linear/inverse/option/spot (必填)
         :param symbol: 交易对名称, 例如 BTC-29NOV24-80000-C (必填)
         :param side: 方向 Buy/Sell (必填)
-        :param order_type: 订单类型 Market/Limit (必填)
+        :param orderType: 订单类型 Market/Limit (必填)
         :param qty: 下单数量 (必填)
         :param price: 限价单价格, Market 单可不填 (可选)
-        :param time_in_force: 执行策略 GTC/IOC/FOK, 默认 GTC (可选)
-        :param order_link_id: 自定义订单 ID (可选)
-        :param reduce_only: 是否只减仓, 适用于 linear/inverse (可选)
-        :param close_on_trigger: 触发后是否平仓 (可选)
+        :param timeInForce: 执行策略 GTC/IOC/FOK, 默认 GTC (可选)
+        :param orderLinkId: 自定义订单 ID (可选)
+        :param reduceOnly: 是否只减仓, 适用于 linear/inverse (可选)
+        :param closeOnTrigger: 触发后是否平仓 (可选)
         :param iv: 隐含波动率, 仅 option 限价单有效 (可选)
         :return: 下单结果字典
         """
@@ -115,26 +115,24 @@ class Bybit(Exchange):
             "category": category,
             "symbol": symbol,
             "side": side,
-            "orderType": order_type,
+            "orderType": orderType,
+            "timeInForce": timeInForce if timeInForce is not None else "GTC",
             "qty": qty,
-            "orderLinkId": order_link_id if order_link_id is not None else str(uuid.uuid4())
+            "orderLinkId": orderLinkId if orderLinkId is not None else str(uuid.uuid4())
         }
 
         if price is not None:
             params["price"] = price
-        if time_in_force is not None:
-            params["timeInForce"] = time_in_force
-        if order_link_id is not None:
-            params["orderLinkId"] = order_link_id
-        if reduce_only is not None:
-            params["reduceOnly"] = reduce_only
-        if close_on_trigger is not None:
-            params["closeOnTrigger"] = close_on_trigger
+        if reduceOnly is not None:
+            params["reduceOnly"] = reduceOnly
+        if closeOnTrigger is not None:
+            params["closeOnTrigger"] = closeOnTrigger
         if iv is not None:
             params["iv"] = iv
 
         headers, body = self._build_signed_headers(params, is_post=True)
         response = self._make_request("POST", endpoint, headers=headers, body=body)
+
         # print(f"create_order Bybit API Response: {response}")
 
         return response
