@@ -68,6 +68,19 @@ def monitor_option_positions(bybit_client, interval: int = 20):
             PEAK_PROFIT_THRESHOLD = float(option_config.get("peakProfit", 0.5))  # 盈亏百分比达到此值时记录峰值
             TRAIL_STOP_THRESHOLD = float(option_config.get("trailStop", 0.1))  # 从峰值回撤达到此值时触发止损
 
+            # 记录当前活跃仓位的 pos_key
+            active_keys = {
+                f"{pos.get('symbol')}_{pos.get('side')}"
+                for pos in position_list
+                if pos.get("size") and float(pos.get("size")) != 0
+            }
+
+            # 清除已不存在仓位的峰值记录
+            stale_keys = [key for key in peak_pnl_pct if key not in active_keys]
+            for key in stale_keys:
+                logger.info(f"[峰值清除] 仓位已平仓，移除峰值记录: {key}")
+                peak_pnl_pct.pop(key)
+
             for pos in position_list:
                 symbol = pos.get("symbol")
                 side = pos.get("side")
@@ -133,7 +146,8 @@ def monitor_option_positions(bybit_client, interval: int = 20):
                         limit_price = round(mark_price * (1 + SLIPPAGE), 1)
 
                     logger.warning(
-                        f"[止损触发] {symbol} side={side} pnl_pct={pnl_pct:.2%} "
+                        f"[止损触发] {symbol} side={side}"
+                        f"峰值盈利={current_peak:.2%} 当前盈亏={pnl_pct:.2%} "
                         f"markPrice={mark_price} limitPrice={limit_price}"
                     )
 
