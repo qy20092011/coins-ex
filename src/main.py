@@ -4,7 +4,8 @@ import time
 import threading
 import schedule
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+
 from exchanges.binance import Binance
 from exchanges.okx import OKX
 from exchanges.bybit import Bybit
@@ -58,6 +59,26 @@ def get_eth_option_analysis(days: int = 200, threshold_pct: float = 5.0):
     """
     result = run_eth_option_analysis(bybit, days=days, threshold_pct=threshold_pct)
     return result
+
+def get_client_ip(request: Request) -> str:
+    # 优先读取代理头
+    xff = request.headers.get("X-Forwarded-For")
+      
+    logger.info(f"xff: {xff}")
+    
+    if xff:
+        return xff.split(",")[0].strip()  # 取第一个
+
+    x_real_ip = request.headers.get("X-Real-IP")
+    if x_real_ip:
+        return x_real_ip.strip()
+
+    # 兜底：直连 IP
+    return request.client.host
+
+@app.get("/ip")
+def get_ip(request: Request):
+    return {"ip": get_client_ip(request)}
 
 def run_scheduler():
     schedule.every(60).seconds.do()

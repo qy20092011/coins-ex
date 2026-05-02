@@ -9,6 +9,7 @@ session = HTTP(
     testnet=False,  # 使用真实环境，测试网设为True
     api_key=os.getenv('BYBIT_API_KEY'),
     api_secret=os.getenv('BYBIT_API_SECRET'),
+    # return_response_headers=True # 给bybit发送返回头
 )
 
 def get_account_balance():
