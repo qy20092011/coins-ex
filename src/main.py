@@ -105,7 +105,7 @@ def main():
         okx = OKX(api_key=os.getenv('OKX_API_KEY'), api_secret=os.getenv('OKX_API_SECRET'), passphrase=os.getenv('OKX_PASSPHRASE'))
         logger.info("OKX 初始化完成")
 
-        bybit = Bybit(api_key=os.getenv('BYBIT_API_KEY'), api_secret=os.getenv('BYBIT_API_SECRET'))
+        bybit = Bybit(api_key=os.getenv('BYBIT_API_KEY_TEST'), api_secret=os.getenv('BYBIT_API_SECRET_TEST'))
         logger.info("Bybit 初始化完成")
 
         bitget = Bitget(api_key=os.getenv('BITGET_API_KEY'), api_secret=os.getenv('BITGET_API_SECRET'), passphrase=os.getenv('BITGET_PASSPHRASE'))
