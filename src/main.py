@@ -128,14 +128,14 @@ def main():
     # scheduler_thread.start()
 
     # ④ 启动期权仓位监控线程
-    logger.info("启动 期权监控线程")
-    option_monitor_thread = threading.Thread(
-        target=monitor_option_positions,
-        args=(bybit, 10),
-        daemon=True,
-        name="OptionMonitor"
-    )
-    option_monitor_thread.start()
+    # logger.info("启动 期权监控线程")
+    # option_monitor_thread = threading.Thread(
+    #     target=monitor_option_positions,
+    #     args=(bybit, 10),
+    #     daemon=True,
+    #     name="OptionMonitor"
+    # )
+    # option_monitor_thread.start()
 
     # ⑤ 启动 uvicorn，log_config=None 让其继承 root logger
     logger.info("启动 HTTP 服务 0.0.0.0:8000")
